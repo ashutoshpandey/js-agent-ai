@@ -21,45 +21,49 @@ function runChatAgent(rl) {
 
     rl.on('line', async (input) => {
         const response = await askOpenAI(input);
-        console.log('Agent:', response);
 
-        const extracted = extractMultiplicationParts(response);
-        if (extracted) {
-            console.log(`Extracted ➤ num1 = ${extracted.num1}, num2 = ${extracted.num2}, result = ${extracted.result}`);
-        } else {
-            console.log('Could not extract numbers.');
+        try {
+            const data = JSON.parse(response);
+            console.log(`Extracted ➤ num1 = ${data.num1}, num2 = ${data.num2}, result = ${data.result}`);
+        } catch (e) {
+            console.log('Could not parse response as JSON:', response);
         }
 
         rl.prompt();
     });
 }
 
-// OpenAI Query
 async function askOpenAI(message) {
     try {
         const chatCompletion = await openai.chat.completions.create({
             model: 'gpt-4',
             messages: [
-                { role: 'system', content: 'You are a helpful assistant. If the user asks a multiplication question, extract the numbers and multiply them.' },
+                {
+                    role: 'system',
+                    content: `
+You are a JSON-only assistant.
+
+When the user asks a multiplication question (like "what is 5 x 7" or "multiply 3 by 4"),
+respond ONLY with valid JSON in this format:
+
+{
+  "num1": 5,
+  "num2": 7,
+  "operation": "multiply",
+  "result": 35
+}
+
+❗Do not include any text before or after the JSON.
+❗Do not explain. Just return the JSON.
+          `.trim()
+                },
                 { role: 'user', content: message }
             ],
-            temperature: 0,
+            temperature: 0  // ensures consistent formatting
         });
 
         return chatCompletion.choices[0].message.content.trim();
     } catch (err) {
         return 'Error communicating with OpenAI: ' + err.message;
     }
-}
-
-function extractMultiplicationParts(response) {
-    // Match patterns like "2 x 3 = 6" or "2 * 3 = 6"
-    const match = response.match(/(\d+)\s*[\*xX]\s*(\d+)\s*=\s*(\d+)/);
-    if (match) {
-        const num1 = parseInt(match[1], 10);
-        const num2 = parseInt(match[2], 10);
-        const result = parseInt(match[3], 10);
-        return { num1, num2, result };
-    }
-    return null;
 }
